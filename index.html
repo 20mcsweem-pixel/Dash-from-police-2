@@ -3,15 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Flappy Bird Clone with Leaderboard</title>
+<title>Flappy Bird Clone with Mobile Leaderboard</title>
 <style>
 body { margin:0; background:#70c5ce; overflow:hidden; font-family:sans-serif;}
 canvas { display:block; background: linear-gradient(to bottom,#70c5ce,#ffffff);}
-#score,#message,#highScore{position:absolute; font-size:24px;color:#fff;text-shadow:2px 2px #000;}
-#score{top:10px; left:10px;}
-#highScore{top:50px; left:10px;}
-#message{top:40%; left:50%; transform:translate(-50%,-50%); font-size:28px; text-align:center;}
-button{font-size:20px; padding:8px 16px; cursor:pointer; margin-top:10px;}
+#score,#highScore,#message{position:absolute; color:#fff; text-shadow:2px 2px #000;}
+#score{top:10px; left:10px; font-size:24px;}
+#highScore{top:50px; left:10px; font-size:20px;}
+#message{top:40%; left:50%; transform:translate(-50%,-50%); text-align:center;}
+button{font-size:20px; padding:8px 16px; margin-top:10px; cursor:pointer;}
+input{font-size:18px; padding:5px; margin-top:10px;}
 </style>
 </head>
 <body>
@@ -32,7 +33,7 @@ let tubeSpeed=3;
 let highScore=localStorage.getItem('flappyHighScore')||0;
 
 // Bird
-const bird={x:80, y:height/2, radius:20, velocity:0, gravity:0.5, jumpPower:-7}; // smaller jump
+const bird={x:80, y:height/2, radius:20, velocity:0, gravity:0.5, jumpPower:-6};
 
 // Tubes
 let tubes=[];
@@ -66,8 +67,8 @@ function drawBird(){
 function jump(){ if(gameState==="playing"){bird.velocity=bird.jumpPower;}}
 
 // Touch/iPhone support
-canvas.addEventListener('touchstart',e=>{e.preventDefault(); if(gameState==="start"){startGame();}else if(gameState==="playing"){jump();}}, {passive:false});
-window.addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='ArrowUp'){if(gameState==="start"){startGame();}else if(gameState==="playing"){jump();}}});
+canvas.addEventListener('touchstart',e=>{e.preventDefault(); if(gameState==="start"){startGame();} else if(gameState==="playing"){jump();}}, {passive:false});
+window.addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='ArrowUp'){if(gameState==="start"){startGame();} else if(gameState==="playing"){jump();}}});
 
 // Collision
 function detectCollision(b,tube){
@@ -83,14 +84,11 @@ function update(){
 
   if(gameState==="start"){ showStartScreen(); requestAnimationFrame(update); return;}
   if(gameState==="playing"){
-    // Bird physics
     bird.velocity+=bird.gravity; bird.y+=bird.velocity;
     if(bird.y+bird.radius>height){ bird.y=height-bird.radius; gameOver();}
     if(bird.y-bird.radius<0){ bird.y=bird.radius; bird.velocity=0;}
-
     drawBird();
 
-    // Tubes
     if(frameCount%tubeFrequency===0) createTube();
     tubes.forEach((tube,index)=>{
       tube.x-=tubeSpeed;
@@ -114,11 +112,13 @@ function showStartScreen(){
   ctx.clearRect(0,0,width,height);
   drawBird();
   const messageDiv=document.getElementById('message');
-  messageDiv.innerHTML=`<div>Flappy Bird Clone</div>
+  const leaderboardBtn=`<button onclick="showLeaderboard()">Leaderboard</button>`;
+  messageDiv.innerHTML=`
+    <div>Flappy Bird Clone</div>
     <div>High Score: ${highScore}</div>
     <button onclick="startGame()">Start Game</button>
-    <button onclick="uploadScore()">Upload Score</button>
-    <button onclick="showLeaderboard()">Leaderboard</button>`;
+    ${leaderboardBtn}
+  `;
   document.getElementById('highScore').innerText="High Score: "+highScore;
 }
 
@@ -133,22 +133,39 @@ function gameOver(){
   gameState="gameover";
   if(score>highScore){ highScore=score; localStorage.setItem('flappyHighScore',highScore);}
   const messageDiv=document.getElementById('message');
-  messageDiv.innerHTML=`<div>Game Over</div><div>Final Score: ${score}</div>
+  messageDiv.innerHTML=`
+    <div>Game Over</div>
+    <div>Final Score: ${score}</div>
     <button onclick="startGame()">Restart</button>
-    <button onclick="showStartScreen()">Home</button>`;
+    <button onclick="showUploadScore()">Upload Score</button>
+    <button onclick="showStartScreen()">Home</button>
+  `;
 }
 
-// Upload score
-function uploadScore(){
-  let name=prompt("Enter your name:");
-  if(name){
-    let scores=JSON.parse(localStorage.getItem('flappyLeaderboard')||"[]");
-    scores.push({name:name,score:score});
-    scores.sort((a,b)=>b.score-a.score);
-    if(scores.length>10) scores=scores.slice(0,10);
-    localStorage.setItem('flappyLeaderboard',JSON.stringify(scores));
-    alert("Score uploaded!");
-  }
+// Upload score screen
+function showUploadScore(){
+  const messageDiv=document.getElementById('message');
+  messageDiv.innerHTML=`
+    <div>Upload Score</div>
+    <div>Final Score: ${score}</div>
+    <input type="text" id="playerName" placeholder="Enter your name">
+    <button onclick="submitScore()">Submit</button>
+    <button onclick="showStartScreen()">Cancel</button>
+  `;
+}
+
+// Submit score
+function submitScore(){
+  const input=document.getElementById('playerName');
+  let name=input.value.trim();
+  if(name===""){ alert("Enter a name!"); return;}
+  let scores=JSON.parse(localStorage.getItem('flappyLeaderboard')||"[]");
+  scores.push({name:name,score:score});
+  scores.sort((a,b)=>b.score-a.score);
+  if(scores.length>10) scores=scores.slice(0,10);
+  localStorage.setItem('flappyLeaderboard',JSON.stringify(scores));
+  alert("Score uploaded!");
+  showLeaderboard();
 }
 
 // Leaderboard
@@ -157,12 +174,14 @@ function showLeaderboard(){
   let list=scores.map((s,i)=>`${i+1}. ${s.name}: ${s.score}`).join("<br>");
   if(list==="") list="No scores yet!";
   const messageDiv=document.getElementById('message');
-  messageDiv.innerHTML=`<div>Leaderboard</div><div style="margin:10px 0">${list}</div>
-    <button onclick="showStartScreen()">Back</button>`;
+  messageDiv.innerHTML=`
+    <div>Leaderboard</div>
+    <div style="margin:10px 0">${list}</div>
+    <button onclick="showStartScreen()">Back</button>
+  `;
 }
 
 update();
-
 window.addEventListener('resize',()=>{
   width=window.innerWidth; height=window.innerHeight;
   canvas.width=width; canvas.height=height;
