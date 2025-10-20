@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Flappy Bird Clone with Mobile Leaderboard</title>
+<title>Mark's Flappy Bird</title>
 <style>
 body { margin:0; background:#70c5ce; overflow:hidden; font-family:sans-serif;}
 canvas { display:block; background: linear-gradient(to bottom,#70c5ce,#ffffff);}
@@ -114,7 +114,7 @@ function showStartScreen(){
   const messageDiv=document.getElementById('message');
   const leaderboardBtn=`<button onclick="showLeaderboard()">Leaderboard</button>`;
   messageDiv.innerHTML=`
-    <div>Flappy Bird Clone</div>
+    <div>Mark's Flappy Bird</div>
     <div>High Score: ${highScore}</div>
     <button onclick="startGame()">Start Game</button>
     ${leaderboardBtn}
@@ -189,4 +189,3 @@ window.addEventListener('resize',()=>{
 </script>
 </body>
 </html>
-
