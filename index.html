@@ -10,9 +10,10 @@ canvas { display:block; background: linear-gradient(to bottom,#70c5ce,#ffffff);}
 #score,#highScore,#message{position:absolute; color:#fff; text-shadow:2px 2px #000;}
 #score{top:10px; left:10px; font-size:24px;}
 #highScore{top:50px; left:10px; font-size:20px;}
-#message{top:40%; left:50%; transform:translate(-50%,-50%); text-align:center; z-index:10;}
+#message{top:30%; left:50%; transform:translate(-50%,-30%); text-align:center; z-index:10;}
 button{font-size:20px; padding:8px 16px; margin-top:10px; cursor:pointer;}
 input{font-size:18px; padding:5px; margin-top:10px;}
+#leaderboardList { max-height:300px; overflow-y:auto; text-align:left; margin:10px 0; padding:5px; border:1px solid #fff; background:rgba(0,0,0,0.3); border-radius:5px;}
 </style>
 </head>
 <body>
@@ -37,7 +38,7 @@ let highScore=localStorage.getItem('flappyHighScore')||0;
 // Bird image
 const birdImg=new Image();
 birdImg.src='https://celebrateurbanbirds.org/wp-content/uploads/2016/08/rock-pigeon.png';
-const bird={x:80, y:height/2, radius:20, velocity:0, gravity:0.5, jumpPower:-6};
+const bird={x:80, y:height/2, radius:25, velocity:0, gravity:0.5, jumpPower:-6};
 
 // Tubes
 let tubes=[];
@@ -76,6 +77,17 @@ function detectCollision(b,tube){
   return false;
 }
 
+// Draw 3D tubes
+function drawTube(tube){
+  ctx.fillStyle='#228B22';
+  ctx.fillRect(tube.x,tube.top.y,tubeWidth,tube.top.height);
+  ctx.fillRect(tube.x,tube.bottom.y,tubeWidth,tube.bottom.height);
+  // 3D effect: highlight right side
+  ctx.fillStyle='rgba(255,255,255,0.2)';
+  ctx.fillRect(tube.x+tubeWidth-10,tube.top.y,10,tube.top.height);
+  ctx.fillRect(tube.x+tubeWidth-10,tube.bottom.y,10,tube.bottom.height);
+}
+
 // Game loop
 function update(){
   ctx.clearRect(0,0,width,height);
@@ -92,9 +104,7 @@ function update(){
     if(frameCount%tubeFrequency===0) createTube();
     tubes.forEach((tube,index)=>{
       tube.x-=tubeSpeed;
-      ctx.fillStyle='green';
-      ctx.fillRect(tube.x,tube.top.y,tubeWidth,tube.top.height);
-      ctx.fillRect(tube.x,tube.bottom.y,tubeWidth,tube.bottom.height);
+      drawTube(tube);
       if(detectCollision(bird,tube)) gameOver();
       if(!tube.passed && tube.x+tubeWidth<bird.x){ 
         score++; tube.passed=true; if(score%5===0) tubeSpeed+=0.5;
@@ -112,15 +122,19 @@ function update(){
 function showStartScreen(){
   ctx.clearRect(0,0,width,height);
   drawBird();
-  const messageDiv=document.getElementById('message');
-  messageDiv.innerHTML=`
+  const msg=document.getElementById('message');
+  msg.innerHTML=`
     <div>Mark's Flappy Bird</div>
     <div>High Score: ${highScore}</div>
-    <button onclick="startGame()">Start Game</button>
+    <button id="startBtn">Start Game</button>
     <button onclick="showUploadScore()">Upload Score</button>
     <button onclick="showLeaderboard()">Leaderboard</button>
   `;
   document.getElementById('highScore').innerText="High Score: "+highScore;
+
+  // Ensure button works on iPhone
+  document.getElementById('startBtn').addEventListener('click', startGame);
+  document.getElementById('startBtn').addEventListener('touchend', startGame);
 }
 
 // Start game
@@ -134,8 +148,8 @@ function startGame(){
 function gameOver(){
   gameState="gameover";
   if(score>highScore){ highScore=score; localStorage.setItem('flappyHighScore',highScore);}
-  const messageDiv=document.getElementById('message');
-  messageDiv.innerHTML=`
+  const msg=document.getElementById('message');
+  msg.innerHTML=`
     <div>Game Over</div>
     <div>Final Score: ${score}</div>
     <button onclick="startGame()">Restart</button>
@@ -146,8 +160,8 @@ function gameOver(){
 
 // Upload score
 function showUploadScore(){
-  const messageDiv=document.getElementById('message');
-  messageDiv.innerHTML=`
+  const msg=document.getElementById('message');
+  msg.innerHTML=`
     <div>Upload Score</div>
     <div>Final Score: ${score}</div>
     <input type="text" id="playerName" placeholder="Enter your name">
@@ -176,12 +190,16 @@ function submitScore(){
 // Leaderboard
 function showLeaderboard(){
   let scores=JSON.parse(localStorage.getItem('flappyLeaderboard')||"[]");
-  let list=scores.map((s,i)=>`${i+1}. ${s.name}: ${s.score}`).join("<br>");
+  const medal=['🥇','🥈','🥉'];
+  let list=scores.map((s,i)=>{
+    let med=i<3?medal[i]+' ':'';
+    return med+s.name+': '+s.score;
+  }).join("<br>");
   if(list==="") list="No scores yet!";
-  const messageDiv=document.getElementById('message');
-  messageDiv.innerHTML=`
+  const msg=document.getElementById('message');
+  msg.innerHTML=`
     <div>Leaderboard</div>
-    <div style="margin:10px 0">${list}</div>
+    <div id="leaderboardList">${list}</div>
     <button onclick="showStartScreen()">Back</button>
     <button onclick="clearLeaderboard()">Clear Leaderboard</button>
   `;
@@ -203,4 +221,3 @@ window.addEventListener('resize',()=>{
 </script>
 </body>
 </html>
-
