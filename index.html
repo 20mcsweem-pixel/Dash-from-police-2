@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dash from the Police</title>
+  <title>Flappy Bird Clone</title>
   <style>
     body {
       margin: 0;
-      font-family: sans-serif;
-      background: #87ceeb;
+      background: #70c5ce;
       overflow: hidden;
+      font-family: sans-serif;
     }
     canvas {
       display: block;
-      background: linear-gradient(to top, #87ceeb, #ffffff);
+      background: linear-gradient(to bottom, #70c5ce, #ffffff);
     }
     #score {
       position: absolute;
@@ -28,7 +28,6 @@
 <body>
   <div id="score">Score: 0</div>
   <canvas id="gameCanvas"></canvas>
-
   <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
@@ -38,53 +37,41 @@
     canvas.width = width;
     canvas.height = height;
 
-    // Player
-    const player = {
-      x: 50,
-      y: height - 150,
-      width: 50,
-      height: 50,
-      color: 'red',
-      velocityY: 0,
-      gravity: 1.2,
-      jumpPower: -20,
-      onGround: false
+    // Bird
+    const bird = {
+      x: 80,
+      y: height / 2,
+      radius: 20,
+      color: 'yellow',
+      velocity: 0,
+      gravity: 0.8,
+      jumpPower: -15
     };
 
-    let obstacles = [];
-    let handcuffs = [];
-    let obstacleFrequency = 90; // frames
-    let handcuffFrequency = 200;
+    // Tubes
+    let tubes = [];
+    const tubeWidth = 80;
+    const tubeGap = 200;
+    let tubeFrequency = 120; // frames
     let frameCount = 0;
     let score = 0;
 
-    function createObstacle() {
-      const heightObstacle = Math.random() * 100 + 50;
-      obstacles.push({
+    function createTube() {
+      const minHeight = 50;
+      const maxHeight = height - tubeGap - 50;
+      const topHeight = Math.random() * (maxHeight - minHeight) + minHeight;
+      const bottomY = topHeight + tubeGap;
+      const bottomHeight = height - bottomY;
+      tubes.push({
         x: width,
-        y: height - heightObstacle,
-        width: 50,
-        height: heightObstacle,
-        color: 'black'
-      });
-    }
-
-    function createHandcuff() {
-      const yPos = Math.random() * (height - 200) + 50;
-      handcuffs.push({
-        x: width,
-        y: yPos,
-        width: 30,
-        height: 30,
-        color: 'gold'
+        top: { y: 0, height: topHeight },
+        bottom: { y: bottomY, height: bottomHeight },
+        passed: false
       });
     }
 
     function jump() {
-      if (player.onGround) {
-        player.velocityY = player.jumpPower;
-        player.onGround = false;
-      }
+      bird.velocity = bird.jumpPower;
     }
 
     window.addEventListener('keydown', e => {
@@ -95,61 +82,65 @@
       jump();
     });
 
-    function detectCollision(a, b) {
-      return a.x < b.x + b.width &&
-             a.x + a.width > b.x &&
-             a.y < b.y + b.height &&
-             a.y + a.height > b.y;
+    function detectCollision(bird, tube) {
+      // Bird edges
+      const bx = bird.x;
+      const by = bird.y;
+      const r = bird.radius;
+      // Top tube
+      if (bx + r > tube.x && bx - r < tube.x + tubeWidth && by - r < tube.top.height) return true;
+      // Bottom tube
+      if (bx + r > tube.x && bx - r < tube.x + tubeWidth && by + r > tube.bottom.y) return true;
+      return false;
     }
 
     function update() {
       ctx.clearRect(0, 0, width, height);
 
-      // Player physics
-      player.velocityY += player.gravity;
-      player.y += player.velocityY;
+      // Bird physics
+      bird.velocity += bird.gravity;
+      bird.y += bird.velocity;
 
-      if (player.y + player.height >= height - 100) {
-        player.y = height - 100 - player.height;
-        player.velocityY = 0;
-        player.onGround = true;
+      if (bird.y + bird.radius > height) {
+        alert("Game Over! Score: " + score);
+        document.location.reload();
+      }
+      if (bird.y - bird.radius < 0) {
+        bird.y = bird.radius;
+        bird.velocity = 0;
       }
 
-      // Draw player
-      ctx.fillStyle = player.color;
-      ctx.fillRect(player.x, player.y, player.width, player.height);
+      // Draw bird
+      ctx.fillStyle = bird.color;
+      ctx.beginPath();
+      ctx.arc(bird.x, bird.y, bird.radius, 0, Math.PI * 2);
+      ctx.fill();
 
-      // Obstacles
-      if (frameCount % obstacleFrequency === 0) createObstacle();
-      obstacles.forEach((obs, index) => {
-        obs.x -= 7;
-        ctx.fillStyle = obs.color;
-        ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+      // Tubes
+      if (frameCount % tubeFrequency === 0) createTube();
+      tubes.forEach((tube, index) => {
+        tube.x -= 5;
+        // Draw top tube
+        ctx.fillStyle = 'green';
+        ctx.fillRect(tube.x, tube.top.y, tubeWidth, tube.top.height);
+        // Draw bottom tube
+        ctx.fillRect(tube.x, tube.bottom.y, tubeWidth, tube.bottom.height);
 
-        if (detectCollision(player, obs)) {
+        // Collision
+        if (detectCollision(bird, tube)) {
           alert("Game Over! Score: " + score);
           document.location.reload();
         }
 
-        if (obs.x + obs.width < 0) {
-          obstacles.splice(index, 1);
-        }
-      });
-
-      // Handcuffs
-      if (frameCount % handcuffFrequency === 0) createHandcuff();
-      handcuffs.forEach((hc, index) => {
-        hc.x -= 7;
-        ctx.fillStyle = hc.color;
-        ctx.fillRect(hc.x, hc.y, hc.width, hc.height);
-
-        if (detectCollision(player, hc)) {
-          score += 10;
-          handcuffs.splice(index, 1);
+        // Update score
+        if (!tube.passed && tube.x + tubeWidth < bird.x) {
+          score++;
+          tube.passed = true;
         }
 
-        if (hc.x + hc.width < 0) {
-          handcuffs.splice(index, 1);
+        // Remove offscreen tubes
+        if (tube.x + tubeWidth < 0) {
+          tubes.splice(index, 1);
         }
       });
 
