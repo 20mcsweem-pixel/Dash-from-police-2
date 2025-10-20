@@ -21,18 +21,23 @@ input{font-size:18px; padding:5px; margin-top:10px;}
 <div id="highScore">High Score: 0</div>
 <div id="message"></div>
 <script>
+// Canvas setup
 const canvas=document.getElementById('gameCanvas');
 const ctx=canvas.getContext('2d');
 let width=window.innerWidth;
 let height=window.innerHeight;
 canvas.width=width; canvas.height=height;
 
-let gameState="start"; // "start","playing","gameover"
+// Game variables
+let gameState="start";
 let score=0;
 let tubeSpeed=3;
 let highScore=localStorage.getItem('flappyHighScore')||0;
 
-// Bird
+// Bird image
+const birdImg=new Image();
+birdImg.src='https://i.ibb.co/2Wzj0nF/bird.png'; // replace with your bird image URL
+
 const bird={x:80, y:height/2, radius:20, velocity:0, gravity:0.5, jumpPower:-6};
 
 // Tubes
@@ -52,25 +57,19 @@ function createTube(){
   tubes.push({x:width, top:{y:0,height:topHeight}, bottom:{y:bottomY,height:bottomHeight}, passed:false});
 }
 
-// Draw bird as triangle
+// Draw bird
 function drawBird(){
-  ctx.fillStyle='yellow';
-  ctx.beginPath();
-  ctx.moveTo(bird.x, bird.y-bird.radius);
-  ctx.lineTo(bird.x-bird.radius, bird.y+bird.radius);
-  ctx.lineTo(bird.x+bird.radius, bird.y+bird.radius);
-  ctx.closePath();
-  ctx.fill();
+  ctx.drawImage(birdImg,bird.x-bird.radius,bird.y-bird.radius,bird.radius*2,bird.radius*2);
 }
 
 // Controls
 function jump(){ if(gameState==="playing"){bird.velocity=bird.jumpPower;}}
 
-// Touch/iPhone support
-canvas.addEventListener('touchstart',e=>{e.preventDefault(); if(gameState==="start"){startGame();} else if(gameState==="playing"){jump();}}, {passive:false});
-window.addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='ArrowUp'){if(gameState==="start"){startGame();} else if(gameState==="playing"){jump();}}});
+// Key/touch events
+window.addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='ArrowUp'){jump();}});
+canvas.addEventListener('touchstart',e=>{e.preventDefault(); if(gameState==="playing"){jump();}}, {passive:false});
 
-// Collision
+// Collision detection
 function detectCollision(b,tube){
   const bx=b.x, by=b.y, r=b.radius;
   if(bx+r>tube.x && bx-r<tube.x+tubeWidth && by-r<tube.top.height) return true;
@@ -84,9 +83,11 @@ function update(){
 
   if(gameState==="start"){ showStartScreen(); requestAnimationFrame(update); return;}
   if(gameState==="playing"){
-    bird.velocity+=bird.gravity; bird.y+=bird.velocity;
+    bird.velocity+=bird.gravity;
+    bird.y+=bird.velocity;
     if(bird.y+bird.radius>height){ bird.y=height-bird.radius; gameOver();}
     if(bird.y-bird.radius<0){ bird.y=bird.radius; bird.velocity=0;}
+
     drawBird();
 
     if(frameCount%tubeFrequency===0) createTube();
@@ -96,10 +97,11 @@ function update(){
       ctx.fillRect(tube.x,tube.top.y,tubeWidth,tube.top.height);
       ctx.fillRect(tube.x,tube.bottom.y,tubeWidth,tube.bottom.height);
       if(detectCollision(bird,tube)) gameOver();
-      if(!tube.passed && tube.x+tubeWidth<bird.x){ score++; tube.passed=true; if(score%5===0) tubeSpeed+=0.5;}
+      if(!tube.passed && tube.x+tubeWidth<bird.x){ 
+        score++; tube.passed=true; if(score%5===0) tubeSpeed+=0.5;
+      }
       if(tube.x+tubeWidth<0) tubes.splice(index,1);
     });
-
     document.getElementById('score').innerText="Score: "+score;
     frameCount++;
   }
@@ -112,19 +114,20 @@ function showStartScreen(){
   ctx.clearRect(0,0,width,height);
   drawBird();
   const messageDiv=document.getElementById('message');
-  const leaderboardBtn=`<button onclick="showLeaderboard()">Leaderboard</button>`;
   messageDiv.innerHTML=`
     <div>Mark's Flappy Bird</div>
     <div>High Score: ${highScore}</div>
     <button onclick="startGame()">Start Game</button>
-    ${leaderboardBtn}
+    <button onclick="showUploadScore()">Upload Score</button>
+    <button onclick="showLeaderboard()">Leaderboard</button>
   `;
   document.getElementById('highScore').innerText="High Score: "+highScore;
 }
 
 // Start game
 function startGame(){
-  gameState="playing"; document.getElementById('message').innerHTML='';
+  gameState="playing";
+  document.getElementById('message').innerHTML='';
   bird.y=height/2; bird.velocity=0; tubes=[]; score=0; tubeSpeed=3; frameCount=0;
 }
 
@@ -142,7 +145,7 @@ function gameOver(){
   `;
 }
 
-// Upload score screen
+// Upload score
 function showUploadScore(){
   const messageDiv=document.getElementById('message');
   messageDiv.innerHTML=`
@@ -154,17 +157,25 @@ function showUploadScore(){
   `;
 }
 
-// Submit score
 function submitScore(){
   const input=document.getElementById('playerName');
   let name=input.value.trim();
   if(name===""){ alert("Enter a name!"); return;}
+
   let scores=JSON.parse(localStorage.getItem('flappyLeaderboard')||"[]");
-  scores.push({name:name,score:score});
+
+  // If name exists, update only if new score is higher
+  const existing=scores.find(s=>s.name===name);
+  if(existing){
+    if(score>existing.score) existing.score=score;
+  }else{
+    scores.push({name:name,score:score});
+  }
+
+  // Sort and keep top 10
   scores.sort((a,b)=>b.score-a.score);
   if(scores.length>10) scores=scores.slice(0,10);
   localStorage.setItem('flappyLeaderboard',JSON.stringify(scores));
-  alert("Score uploaded!");
   showLeaderboard();
 }
 
@@ -178,7 +189,16 @@ function showLeaderboard(){
     <div>Leaderboard</div>
     <div style="margin:10px 0">${list}</div>
     <button onclick="showStartScreen()">Back</button>
+    <button onclick="clearLeaderboard()">Clear Leaderboard</button>
   `;
+}
+
+// Clear leaderboard
+function clearLeaderboard(){
+  if(confirm("Are you sure you want to clear the leaderboard?")){
+    localStorage.removeItem('flappyLeaderboard');
+    showLeaderboard();
+  }
 }
 
 update();
