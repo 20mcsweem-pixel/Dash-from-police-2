@@ -17,11 +17,13 @@
   }
   #score, #message {
     position: absolute;
-    top: 10px;
-    left: 10px;
     font-size: 24px;
     color: #fff;
     text-shadow: 2px 2px #000;
+  }
+  #score {
+    top: 10px;
+    left: 10px;
   }
   #message {
     top: 40%;
@@ -53,6 +55,7 @@ canvas.height = height;
 
 let gameState = "start"; // "start", "playing", "gameover"
 let score = 0;
+let tubeSpeed = 3; // starting tube speed, will increase gradually
 
 // Bird
 const bird = {
@@ -61,8 +64,8 @@ const bird = {
   radius: 20,
   color: 'yellow',
   velocity: 0,
-  gravity: 0.5, // slower falling speed
-  jumpPower: -15
+  gravity: 0.5,
+  jumpPower: -10 // less extreme bounce
 };
 
 // Tubes
@@ -144,7 +147,7 @@ function update() {
     // Tubes
     if (frameCount % tubeFrequency === 0) createTube();
     tubes.forEach((tube, index) => {
-      tube.x -= 5;
+      tube.x -= tubeSpeed;
 
       ctx.fillStyle = 'green';
       ctx.fillRect(tube.x, tube.top.y, tubeWidth, tube.top.height);
@@ -155,6 +158,11 @@ function update() {
       if (!tube.passed && tube.x + tubeWidth < bird.x) {
         score++;
         tube.passed = true;
+
+        // Increase difficulty gradually
+        if (score % 5 === 0) {
+          tubeSpeed += 0.5;
+        }
       }
 
       if (tube.x + tubeWidth < 0) tubes.splice(index, 1);
@@ -170,7 +178,7 @@ function update() {
 // Start screen
 function showStartScreen() {
   ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = 'yellow';
+  ctx.fillStyle = bird.color;
   ctx.beginPath();
   ctx.arc(bird.x, bird.y, bird.radius, 0, Math.PI * 2);
   ctx.fill();
@@ -190,6 +198,7 @@ function startGame() {
   bird.velocity = 0;
   tubes = [];
   score = 0;
+  tubeSpeed = 3; // reset tube speed
   frameCount = 0;
 }
 
