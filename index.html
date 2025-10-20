@@ -37,7 +37,6 @@ let highScore=localStorage.getItem('flappyHighScore')||0;
 // Bird image
 const birdImg=new Image();
 birdImg.src='https://celebrateurbanbirds.org/wp-content/uploads/2016/08/rock-pigeon.png';
-
 const bird={x:80, y:height/2, radius:20, velocity:0, gravity:0.5, jumpPower:-6};
 
 // Tubes
@@ -65,9 +64,9 @@ function drawBird(){
 // Jump
 function jump(){ if(gameState==="playing"){bird.velocity=bird.jumpPower;}}
 
-// Key/touch events for gameplay only
+// Key/touch events
 window.addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='ArrowUp'){jump();}});
-canvas.addEventListener('touchstart',e=>{e.preventDefault(); if(gameState==="playing"){jump();}}, {passive:false});
+canvas.addEventListener('touchstart',e=>{if(gameState==="playing"){jump();}}, {passive:true});
 
 // Collision detection
 function detectCollision(b,tube){
@@ -204,3 +203,4 @@ window.addEventListener('resize',()=>{
 </script>
 </body>
 </html>
+
