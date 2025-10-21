@@ -41,13 +41,12 @@ let highScore = localStorage.getItem('flappyHighScore') || 0;
 // Bird images
 const birdImg = new Image();
 birdImg.src = 'https://celebrateurbanbirds.org/wp-content/uploads/2016/08/rock-pigeon.png';
-
 const birdFlapImg = new Image();
 birdFlapImg.src = 'https://static.pngtree.com/png-vector/20210710/ourmid/pngtree-pigeon-in-mid-flight-with-flapping-wings-png-image_3541772.png';
-
 let birdReady = false;
 let birdFlapReady = false;
 
+// Bird object
 const bird = { x: 80, y: height/2, radius: 25, velocity:0, gravity:0.5, jumpPower:-6, flapping:false };
 
 // Towers
@@ -57,20 +56,27 @@ const tubeGap = 200;
 
 // Clouds
 let clouds = [];
-for(let i=0;i<10;i++){
-  clouds.push({x:Math.random()*width, y:Math.random()*height/2, radius:Math.random()*30+20, speed:0.3+Math.random()*0.5});
+
+// Ensure images loaded before starting
+birdImg.onload = checkImages;
+birdFlapImg.onload = checkImages;
+
+function checkImages() {
+  if(birdImg.complete && birdFlapImg.complete){
+    birdReady = true;
+    birdFlapReady = true;
+    initGame();
+  }
 }
 
-// Ensure both images are loaded before starting
-birdImg.onload = () => { birdReady = true; startIfReady(); };
-birdFlapImg.onload = () => { birdFlapReady = true; startIfReady(); };
-
-function startIfReady(){
-  if(birdReady && birdFlapReady){
-    showStartScreen();
-    gameState = "start";
-    update();
+function initGame(){
+  clouds=[];
+  for(let i=0;i<10;i++){
+    clouds.push({x:Math.random()*width, y:Math.random()*height/2, radius:Math.random()*30+20, speed:0.3+Math.random()*0.5});
   }
+  showStartScreen();
+  gameState="start";
+  requestAnimationFrame(update);
 }
 
 // Functions
@@ -113,7 +119,6 @@ function detectCollision(b,tube){
 
 // Draw tower with windows
 function drawTube(tube){
-  // Bottom tower
   ctx.fillStyle = '#888';
   ctx.fillRect(tube.x, tube.bottom.y, tubeWidth, tube.bottom.height);
   ctx.fillStyle = 'black';
@@ -124,7 +129,6 @@ function drawTube(tube){
       ctx.fillRect(tube.x+5+j*25, tube.bottom.y+5+i*20, 15,15);
     }
   }
-  // Top pipe
   ctx.fillStyle = '#228B22';
   ctx.fillRect(tube.x, tube.top.y, tubeWidth, tube.top.height);
 }
@@ -146,7 +150,7 @@ function update(){
   ctx.clearRect(0,0,width,height);
   drawClouds();
 
-  if(gameState==="start"){ requestAnimationFrame(update); return; }
+  if(gameState==="start"){ drawBird(); requestAnimationFrame(update); return; }
 
   if(gameState==="playing"){
     bird.velocity += bird.gravity;
@@ -267,7 +271,6 @@ window.addEventListener('resize',()=>{
   width=window.innerWidth; height=window.innerHeight;
   canvas.width=width; canvas.height=height;
 });
-
 </script>
 </body>
 </html>
