@@ -38,16 +38,13 @@ let frameCount = 0;
 let tubeFrequency = 120;
 let highScore = localStorage.getItem('flappyHighScore') || 0;
 
-// Bird images
+// Bird image (static only)
 const birdImg = new Image();
 birdImg.src = 'https://celebrateurbanbirds.org/wp-content/uploads/2016/08/rock-pigeon.png';
-const birdFlapImg = new Image();
-birdFlapImg.src = 'https://static.pngtree.com/png-vector/20210710/ourmid/pngtree-pigeon-in-mid-flight-with-flapping-wings-png-image_3541772.png';
 let birdReady = false;
-let birdFlapReady = false;
 
 // Bird object
-const bird = { x: 80, y: height/2, radius: 25, velocity:0, gravity:0.5, jumpPower:-6, flapping:false };
+const bird = { x: 80, y: height/2, radius: 25, velocity:0, gravity:0.5, jumpPower:-6 };
 
 // Towers
 let tubes = [];
@@ -57,18 +54,10 @@ const tubeGap = 200;
 // Clouds
 let clouds = [];
 
-// Ensure images loaded before starting
-birdImg.onload = checkImages;
-birdFlapImg.onload = checkImages;
+// Load bird image
+birdImg.onload = () => { birdReady=true; initGame(); };
 
-function checkImages() {
-  if(birdImg.complete && birdFlapImg.complete){
-    birdReady = true;
-    birdFlapReady = true;
-    initGame();
-  }
-}
-
+// Initialize game after image is loaded
 function initGame(){
   clouds=[];
   for(let i=0;i<10;i++){
@@ -90,9 +79,7 @@ function createTube(){
 }
 
 function drawBird(){
-  if(bird.flapping && birdFlapReady){
-    ctx.drawImage(birdFlapImg, bird.x-bird.radius, bird.y-bird.radius, bird.radius*2, bird.radius*2);
-  } else if(birdReady){
+  if(birdReady){
     ctx.drawImage(birdImg, bird.x-bird.radius, bird.y-bird.radius, bird.radius*2, bird.radius*2);
   }
 }
@@ -100,8 +87,6 @@ function drawBird(){
 function jump(){
   if(gameState==="playing"){
     bird.velocity = bird.jumpPower;
-    bird.flapping = true;
-    setTimeout(()=>{ bird.flapping = false; }, 100);
   }
 }
 
