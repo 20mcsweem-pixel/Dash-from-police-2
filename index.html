@@ -23,70 +23,85 @@ input{font-size:18px; padding:5px; margin-top:10px;}
 <div id="message"></div>
 <script>
 // Canvas setup
-const canvas=document.getElementById('gameCanvas');
-const ctx=canvas.getContext('2d');
-let width=window.innerWidth;
-let height=window.innerHeight;
-canvas.width=width;
-canvas.height=height;
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let width = window.innerWidth;
+let height = window.innerHeight;
+canvas.width = width;
+canvas.height = height;
 
 // Game variables
-let gameState="start";
-let score=0;
-let tubeSpeed=3;
-let highScore=localStorage.getItem('flappyHighScore')||0;
+let gameState = "loading";
+let score = 0;
+let tubeSpeed = 3;
+let frameCount = 0;
+let tubeFrequency = 120;
+let highScore = localStorage.getItem('flappyHighScore') || 0;
 
 // Bird images
-const birdImg=new Image();
-birdImg.src='https://celebrateurbanbirds.org/wp-content/uploads/2016/08/rock-pigeon.png';
+const birdImg = new Image();
+birdImg.src = 'https://celebrateurbanbirds.org/wp-content/uploads/2016/08/rock-pigeon.png';
 
-const birdFlapImg=new Image();
-birdFlapImg.src='https://static.pngtree.com/png-vector/20210710/ourmid/pngtree-pigeon-in-mid-flight-with-flapping-wings-png-image_3541772.png';
+const birdFlapImg = new Image();
+birdFlapImg.src = 'https://static.pngtree.com/png-vector/20210710/ourmid/pngtree-pigeon-in-mid-flight-with-flapping-wings-png-image_3541772.png';
 
-const bird={x:80, y:height/2, radius:25, velocity:0, gravity:0.5, jumpPower:-6, flapping:false};
+let birdReady = false;
+let birdFlapReady = false;
+
+const bird = { x: 80, y: height/2, radius: 25, velocity:0, gravity:0.5, jumpPower:-6, flapping:false };
 
 // Towers
-let tubes=[];
-const tubeWidth=80;
-const tubeGap=200;
-let tubeFrequency=120;
-let frameCount=0;
+let tubes = [];
+const tubeWidth = 80;
+const tubeGap = 200;
 
 // Clouds
-let clouds=[];
+let clouds = [];
 for(let i=0;i<10;i++){
   clouds.push({x:Math.random()*width, y:Math.random()*height/2, radius:Math.random()*30+20, speed:0.3+Math.random()*0.5});
 }
 
+// Ensure both images are loaded before starting
+birdImg.onload = () => { birdReady = true; startIfReady(); };
+birdFlapImg.onload = () => { birdFlapReady = true; startIfReady(); };
+
+function startIfReady(){
+  if(birdReady && birdFlapReady){
+    showStartScreen();
+    gameState = "start";
+    update();
+  }
+}
+
 // Functions
 function createTube(){
-  const minHeight=50;
-  const maxHeight=height-tubeGap-50;
-  const topHeight=Math.random()*(maxHeight-minHeight)+minHeight;
-  const bottomY=topHeight+tubeGap;
-  const bottomHeight=height-bottomY;
-  tubes.push({x:width, top:{y:0,height:topHeight}, bottom:{y:bottomY,height:bottomHeight}, passed:false});
+  const minHeight = 50;
+  const maxHeight = height - tubeGap - 50;
+  const topHeight = Math.random()*(maxHeight-minHeight)+minHeight;
+  const bottomY = topHeight + tubeGap;
+  const bottomHeight = height - bottomY;
+  tubes.push({x: width, top:{y:0, height:topHeight}, bottom:{y:bottomY, height:bottomHeight}, passed:false});
 }
 
 function drawBird(){
-  if(bird.flapping){
-    ctx.drawImage(birdFlapImg,bird.x-bird.radius,bird.y-bird.radius,bird.radius*2,bird.radius*2);
-  }else{
-    ctx.drawImage(birdImg,bird.x-bird.radius,bird.y-bird.radius,bird.radius*2,bird.radius*2);
+  if(bird.flapping && birdFlapReady){
+    ctx.drawImage(birdFlapImg, bird.x-bird.radius, bird.y-bird.radius, bird.radius*2, bird.radius*2);
+  } else if(birdReady){
+    ctx.drawImage(birdImg, bird.x-bird.radius, bird.y-bird.radius, bird.radius*2, bird.radius*2);
   }
 }
 
 function jump(){
   if(gameState==="playing"){
-    bird.velocity=bird.jumpPower;
-    bird.flapping=true;
-    setTimeout(()=>{bird.flapping=false;},100); // flap duration in ms
+    bird.velocity = bird.jumpPower;
+    bird.flapping = true;
+    setTimeout(()=>{ bird.flapping = false; }, 100);
   }
 }
 
 // Events
-window.addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='ArrowUp'){jump();}});
-canvas.addEventListener('touchstart',e=>{if(gameState==="playing"){jump();}}, {passive:true});
+window.addEventListener('keydown', e=>{ if(e.code==='Space'||e.code==='ArrowUp') jump(); });
+canvas.addEventListener('touchstart', e=>{ if(gameState==="playing") jump(); }, {passive:true});
 
 // Collision
 function detectCollision(b,tube){
@@ -98,31 +113,31 @@ function detectCollision(b,tube){
 
 // Draw tower with windows
 function drawTube(tube){
-  ctx.fillStyle='#888'; // gray tower
-  ctx.fillRect(tube.x,tube.bottom.y,tubeWidth,tube.bottom.height);
-  // windows
-  ctx.fillStyle='black';
-  const rows=Math.floor(tube.bottom.height/20);
-  const cols=3;
+  // Bottom tower
+  ctx.fillStyle = '#888';
+  ctx.fillRect(tube.x, tube.bottom.y, tubeWidth, tube.bottom.height);
+  ctx.fillStyle = 'black';
+  const rows = Math.floor(tube.bottom.height/20);
+  const cols = 3;
   for(let i=0;i<rows;i++){
     for(let j=0;j<cols;j++){
       ctx.fillRect(tube.x+5+j*25, tube.bottom.y+5+i*20, 15,15);
     }
   }
-  // Top tube
-  ctx.fillStyle='#228B22';
-  ctx.fillRect(tube.x,tube.top.y,tubeWidth,tube.top.height);
+  // Top pipe
+  ctx.fillStyle = '#228B22';
+  ctx.fillRect(tube.x, tube.top.y, tubeWidth, tube.top.height);
 }
 
-// Draw clouds
+// Clouds
 function drawClouds(){
   ctx.fillStyle='rgba(255,255,255,0.8)';
   clouds.forEach(c=>{
     ctx.beginPath();
     ctx.arc(c.x,c.y,c.radius,0,Math.PI*2);
     ctx.fill();
-    c.x-=c.speed;
-    if(c.x+c.radius<0) c.x=width+c.radius;
+    c.x -= c.speed;
+    if(c.x+c.radius<0) c.x = width+c.radius;
   });
 }
 
@@ -131,27 +146,27 @@ function update(){
   ctx.clearRect(0,0,width,height);
   drawClouds();
 
-  if(gameState==="start"){ showStartScreen(); requestAnimationFrame(update); return;}
-  if(gameState==="playing"){
-    bird.velocity+=bird.gravity;
-    bird.y+=bird.velocity;
+  if(gameState==="start"){ requestAnimationFrame(update); return; }
 
-    if(bird.y+bird.radius>height){ bird.y=height-bird.radius; gameOver();}
-    if(bird.y-bird.radius<0){ bird.y=bird.radius; bird.velocity=0;}
+  if(gameState==="playing"){
+    bird.velocity += bird.gravity;
+    bird.y += bird.velocity;
+
+    if(bird.y + bird.radius > height){ bird.y = height-bird.radius; gameOver(); }
+    if(bird.y - bird.radius < 0){ bird.y = bird.radius; bird.velocity = 0; }
 
     drawBird();
 
-    if(frameCount%tubeFrequency===0) createTube();
+    if(frameCount % tubeFrequency === 0) createTube();
     tubes.forEach((tube,index)=>{
-      tube.x-=tubeSpeed;
+      tube.x -= tubeSpeed;
       drawTube(tube);
       if(detectCollision(bird,tube)) gameOver();
-      if(!tube.passed && tube.x+tubeWidth<bird.x){ 
-        score++; tube.passed=true; if(score%5===0) tubeSpeed+=0.5;
-      }
+      if(!tube.passed && tube.x+tubeWidth < bird.x){ score++; tube.passed=true; if(score%5===0) tubeSpeed+=0.5; }
       if(tube.x+tubeWidth<0) tubes.splice(index,1);
     });
-    document.getElementById('score').innerText="Score: "+score;
+
+    document.getElementById('score').innerText = "Score: "+score;
     frameCount++;
   }
 
@@ -163,16 +178,15 @@ function showStartScreen(){
   ctx.clearRect(0,0,width,height);
   drawClouds();
   drawBird();
-  const msg=document.getElementById('message');
-  msg.innerHTML=`
+  const msg = document.getElementById('message');
+  msg.innerHTML = `
     <div>Mark's Flappy Bird</div>
     <div>High Score: ${highScore}</div>
     <button id="startBtn">Start Game</button>
     <button onclick="showUploadScore()">Upload Score</button>
     <button onclick="showLeaderboard()">Leaderboard</button>
   `;
-  document.getElementById('highScore').innerText="High Score: "+highScore;
-  const startBtn=document.getElementById('startBtn');
+  const startBtn = document.getElementById('startBtn');
   startBtn.addEventListener('click', startGame);
   startBtn.addEventListener('touchend', startGame);
 }
@@ -181,14 +195,14 @@ function showStartScreen(){
 function startGame(){
   gameState="playing";
   document.getElementById('message').innerHTML='';
-  bird.y=height/2; bird.velocity=0; tubes=[]; score=0; tubeSpeed=3; frameCount=0;
+  bird.y = height/2; bird.velocity=0; tubes=[]; score=0; tubeSpeed=3; frameCount=0;
 }
 
 // Game over
 function gameOver(){
   gameState="gameover";
   if(score>highScore){ highScore=score; localStorage.setItem('flappyHighScore',highScore);}
-  const msg=document.getElementById('message');
+  const msg = document.getElementById('message');
   msg.innerHTML=`
     <div>Game Over</div>
     <div>Final Score: ${score}</div>
@@ -200,7 +214,7 @@ function gameOver(){
 
 // Upload score
 function showUploadScore(){
-  const msg=document.getElementById('message');
+  const msg = document.getElementById('message');
   msg.innerHTML=`
     <div>Upload Score</div>
     <div>Final Score: ${score}</div>
@@ -248,11 +262,12 @@ function clearLeaderboard(){
   }
 }
 
-update();
+// Responsive canvas
 window.addEventListener('resize',()=>{
   width=window.innerWidth; height=window.innerHeight;
   canvas.width=width; canvas.height=height;
 });
+
 </script>
 </body>
 </html>
