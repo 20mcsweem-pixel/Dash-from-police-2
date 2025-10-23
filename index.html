@@ -59,6 +59,10 @@ let clouds = [];
 let poops = [];
 const poopRadius = 8;
 
+// Double-tap detection
+let lastTapTime = 0;
+const doubleTapThreshold = 300; // milliseconds
+
 birdImg.onload = () => { birdReady=true; initGame(); };
 
 function initGame(){
@@ -96,16 +100,30 @@ function jump(){
 // Events
 window.addEventListener('keydown', e=>{
   if(e.code==='Space' || e.code==='ArrowUp'){
-    if(gameState === "start"){ startGame(); }
-    else if(gameState === "playing"){ jump(); }
-  } else if(e.code==='ArrowDown' && gameState==="playing"){
-    // drop poop
-    poops.push({x: bird.x, y: bird.y, vy: 4});
+    if(gameState==="start"){ startGame(); }
+    else if(gameState==="playing"){ jump(); }
+  } else if(e.code==='ArrowDown' && gameState==="playing"){ // poop
+    poops.push({x: bird.x, y: bird.y, vy:4});
   }
 });
+
+canvas.addEventListener('mousedown', e=>{
+  if(gameState==="start"){ startGame(); }
+  else if(gameState==="playing"){ jump(); }
+});
+
 canvas.addEventListener('touchstart', e=>{
-  if(gameState === "start"){ startGame(); }
-  else if(gameState === "playing"){ jump(); }
+  const currentTime = new Date().getTime();
+  if(gameState==="start"){ startGame(); }
+  else if(gameState==="playing"){
+    if(currentTime - lastTapTime < doubleTapThreshold){
+      poops.push({x: bird.x, y: bird.y, vy:4});
+      lastTapTime = 0;
+    } else {
+      jump();
+      lastTapTime = currentTime;
+    }
+  }
 }, {passive:true});
 
 // Collision
@@ -150,11 +168,11 @@ function update(){
   drawClouds();
 
   // draw poops
-  poops.forEach((p, index)=>{
+  poops.forEach((p,index)=>{
     p.y += p.vy;
     ctx.fillStyle = '#654321';
     ctx.beginPath();
-    ctx.arc(p.x, p.y, poopRadius, 0, Math.PI*2);
+    ctx.arc(p.x,p.y,poopRadius,0,Math.PI*2);
     ctx.fill();
     if(p.y - poopRadius > height) poops.splice(index,1);
   });
@@ -198,7 +216,7 @@ function showStartScreen(){
     <button id="startBtn">Start Game</button>
     <button onclick="showUploadScore()">Upload Score</button>
     <button onclick="showLeaderboard()">Leaderboard</button>
-    <p>(Tip: Press Space to Start, Down Arrow to Poop!)</p>
+    <p>(Tip: Press Space, Click, or Tap to Start; Down Arrow or Double Tap to Poop!)</p>
   `;
   const startBtn = document.getElementById('startBtn');
   startBtn.addEventListener('click', startGame);
@@ -210,7 +228,7 @@ function startGame(){
   gameState="playing";
   document.getElementById('message').innerHTML='';
   bird.y = height/2; bird.velocity=0; tubes=[]; score=0; tubeSpeed=3; frameCount=0;
-  poops=[]; // clear any old poops
+  poops=[];
 }
 
 // Game over
