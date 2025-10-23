@@ -1,135 +1,287 @@
-<!--
-2D Random Track Racing Game with Mouse Clicks
-WASD controls + mouse click for acceleration
--->
-
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>2D Random Track Racing (WASD + Mouse)</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mark's Flappy Bird</title>
 <style>
-  html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto}
-  #ui{position:fixed;left:8px;top:8px;background:rgba(0,0,0,0.5);color:#fff;padding:8px;border-radius:6px;z-index:20}
-  canvas{display:block;background:#1b2735;width:100vw;height:100vh}
-  .muted{opacity:0.8;font-size:13px}
-  .tiny{font-size:12px}
+body { margin:0; overflow:hidden; background:#70c5ce; font-family:sans-serif;}
+canvas { display:block; background: linear-gradient(to bottom,#70c5ce,#ffffff);}
+#score,#highScore,#message{position:absolute; color:#fff; text-shadow:2px 2px #000;}
+#score{top:10px; left:10px; font-size:24px;}
+#highScore{top:50px; left:10px; font-size:20px;}
+#message{top:30%; left:50%; transform:translate(-50%,-30%); text-align:center; z-index:10;}
+button{font-size:20px; padding:8px 16px; margin-top:10px; cursor:pointer;}
+input{font-size:18px; padding:5px; margin-top:10px;}
+#leaderboardList { max-height:300px; overflow-y:auto; text-align:left; margin:10px 0; padding:5px; border:1px solid #fff; background:rgba(0,0,0,0.3); border-radius:5px;}
 </style>
 </head>
 <body>
-<div id="ui">
-  <div><strong>2D Random Track Racing</strong> <span class="tiny muted">(now mouse-enabled)</span></div>
-  <div class="muted tiny">Controls: W accelerate, S brake, A/D steer, click to accelerate.</div>
-  <div id="status" class="tiny"></div>
-</div>
-<canvas id="c"></canvas>
+<canvas id="gameCanvas"></canvas>
+<div id="score">Score: 0</div>
+<div id="highScore">High Score: 0</div>
+<div id="message"></div>
+
 <script>
-const IMG_URL = 'https://www.carsized.com/resources/nissan/cube/d/2008/sl_279109089_nissan-cube-2008-side-view_4x.png';
-const NUM_AI = 5;
-const TRACK_POINTS = 18;
-const TRACK_DETAIL = 600;
-const TRACK_RADIUS = 350;
-const TRACK_VARIANCE = 0.32;
-const TRACK_WIDTH = 80;
+// Canvas setup
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let width = window.innerWidth;
+let height = window.innerHeight;
+canvas.width = width;
+canvas.height = height;
 
-function rand(a,b){return a + Math.random()*(b-a)}
-function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
-function angleDiff(a,b){let d=(b-a+Math.PI*3)%(Math.PI*2)-Math.PI;return d;}
-function distance(x1,y1,x2,y2){return Math.hypot(x2-x1,y2-y1)}
-function lerp(a,b,t){return a+(b-a)*t}
-function catmullRom(p0,p1,p2,p3,t){return 0.5*((2*p1)+(-p0+p2)*t+(2*p0-5*p1+4*p2-p3)*t*t+(-p0+3*p1-3*p2+p3)*t*t*t);}
+// Game variables
+let gameState = "loading";
+let score = 0;
+let tubeSpeed = 3;
+let frameCount = 0;
+let tubeFrequency = 120;
+let highScore = localStorage.getItem('flappyHighScore') || 0;
 
-const canvas=document.getElementById('c');
-const ctx=canvas.getContext('2d');
-function resize(){canvas.width=innerWidth*devicePixelRatio;canvas.height=innerHeight*devicePixelRatio;canvas.style.width=innerWidth+'px';canvas.style.height=innerHeight+'px';ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);}
-addEventListener('resize',resize);
-resize();
+// Bird image
+const birdImg = new Image();
+birdImg.src = 'https://celebrateurbanbirds.org/wp-content/uploads/2016/08/rock-pigeon.png';
+let birdReady = false;
 
-function generateRadialTrack(cx,cy,pts,baseRadius,variance){
-  const controls=[];
-  for(let i=0;i<pts;i++){const angle=(i/pts)*(Math.PI*2);const r=baseRadius*(1+(Math.random()*2-1)*variance);controls.push({x:cx+Math.cos(angle)*r,y:cy+Math.sin(angle)*r});}
-  const sampled=[];
-  for(let i=0;i<TRACK_DETAIL;i++){const t=i/TRACK_DETAIL*pts;const idx=Math.floor(t);const f=t-idx;
-    const p0=controls[(idx-1+pts)%pts];const p1=controls[idx%pts];const p2=controls[(idx+1)%pts];const p3=controls[(idx+2)%pts];
-    const x=catmullRom(p0.x,p1.x,p2.x,p3.x,f);const y=catmullRom(p0.y,p1.y,p2.y,p3.y,f);sampled.push({x,y});}
-  return sampled;
+// Bird object
+const bird = { x: 80, y: height/2, radius: 25, velocity:0, gravity:0.5, jumpPower:-6 };
+
+// Towers
+let tubes = [];
+const tubeWidth = 80;
+const tubeGap = 200;
+
+// Clouds
+let clouds = [];
+
+// Bird poop
+let poops = [];
+const poopRadius = 8;
+
+birdImg.onload = () => { birdReady=true; initGame(); };
+
+function initGame(){
+  clouds=[];
+  for(let i=0;i<10;i++){
+    clouds.push({x:Math.random()*width, y:Math.random()*height/2, radius:Math.random()*30+20, speed:0.3+Math.random()*0.5});
+  }
+  showStartScreen();
+  gameState="start";
+  requestAnimationFrame(update);
 }
-function computeWaypoints(centerline,step){const w=[];for(let i=0;i<centerline.length;i+=step){w.push(centerline[i]);}return w;}
 
-class Car{
-  constructor(x,y,angle,color,isPlayer=false){this.x=x;this.y=y;this.angle=angle;this.speed=0;this.color=color;this.width=40;this.height=20;
-    this.maxSpeed=250;this.accel=220;this.turnRate=3.2;this.brake=360;this.isPlayer=isPlayer;this.waypointIndex=0;this.laps=0;this.finished=false;}
-  update(dt,controls,waypoints,others){
-    if(this.isPlayer){
-      const steer=(controls.left?-1:0)+(controls.right?1:0);
-      this.angle+=steer*this.turnRate*dt*(1-Math.min(0.7,Math.abs(this.speed)/this.maxSpeed));
-      if(controls.acc) this.speed+=this.accel*dt*(controls.boost?1.8:1);
-      if(controls.brk) this.speed-=this.brake*dt;
-    } else {
-      const target=waypoints[this.waypointIndex];
-      const desired=Math.atan2(target.y-this.y,target.x-this.x);
-      const diff=angleDiff(this.angle,desired);
-      const steer=clamp(diff*2.0,-1,1);
-      this.angle+=steer*this.turnRate*dt;
-      const turnFactor=1-Math.min(0.8,Math.abs(diff)/(Math.PI));
-      const targetSpeed=this.maxSpeed*(0.35+0.65*turnFactor);
-      if(this.speed<targetSpeed)this.speed+=this.accel*dt*0.8;else this.speed-=this.brake*dt*0.5;
-      if(distance(this.x,this.y,target.x,target.y)<60)this.waypointIndex=(this.waypointIndex+1)%waypoints.length;
-      for(const o of others){if(o===this)continue;const d=distance(this.x,this.y,o.x,o.y);if(d<45)this.speed-=(45-d)*6*dt;}
-    }
-    this.speed=clamp(this.speed,-80,this.maxSpeed);
-    this.x+=Math.cos(this.angle)*this.speed*dt;
-    this.y+=Math.sin(this.angle)*this.speed*dt;
+// Functions
+function createTube(){
+  const minHeight = 50;
+  const maxHeight = height - tubeGap - 50;
+  const topHeight = Math.random()*(maxHeight-minHeight)+minHeight;
+  const bottomY = topHeight + tubeGap;
+  const bottomHeight = height - bottomY;
+  tubes.push({x: width, top:{y:0, height:topHeight}, bottom:{y:bottomY, height:bottomHeight}, passed:false});
+}
+
+function drawBird(){
+  if(birdReady){
+    ctx.drawImage(birdImg, bird.x-bird.radius, bird.y-bird.radius, bird.radius*2, bird.radius*2);
   }
 }
 
-function randomColor(){const r=Math.floor(rand(40,230)),g=Math.floor(rand(40,230)),b=Math.floor(rand(40,230));return `rgb(${r},${g},${b})`;}
-
-const carImg=new Image();carImg.crossOrigin='anonymous';carImg.src=IMG_URL;
-
-let centerline=[],waypoints=[],cars=[],playerControls={acc:false,brk:false,left:false,right:false,boost:false};
-
-function resetScene(){
-  const cx=innerWidth/2,cy=innerHeight/2;
-  centerline=generateRadialTrack(cx,cy,TRACK_POINTS,TRACK_RADIUS,TRACK_VARIANCE);
-  waypoints=computeWaypoints(centerline,Math.max(2,Math.floor(centerline.length/60)));
-  cars=[];
-  const start=centerline[0],next=centerline[20%centerline.length];
-  const startAngle=Math.atan2(next.y-start.y,next.x-start.x);
-  cars.push(new Car(start.x-Math.cos(startAngle)*TRACK_WIDTH*0.5,start.y-Math.sin(startAngle)*TRACK_WIDTH*0.5,startAngle,'#00FFAA',true));
-  for(let i=0;i<NUM_AI;i++){const p=centerline[Math.floor((i+1)*centerline.length/(NUM_AI+1))];
-    cars.push(new Car(p.x+Math.cos(startAngle)*TRACK_WIDTH*(0.3+i*0.12),p.y+Math.sin(startAngle)*TRACK_WIDTH*(0.3+i*0.12),startAngle,randomColor(),false));}
+function jump(){
+  if(gameState==="playing"){
+    bird.velocity = bird.jumpPower;
+  }
 }
 
-resetScene();
+// Events
+window.addEventListener('keydown', e=>{
+  if(e.code==='Space' || e.code==='ArrowUp'){
+    if(gameState === "start"){ startGame(); }
+    else if(gameState === "playing"){ jump(); }
+  } else if(e.code==='ArrowDown' && gameState==="playing"){
+    // drop poop
+    poops.push({x: bird.x, y: bird.y, vy: 4});
+  }
+});
+canvas.addEventListener('touchstart', e=>{
+  if(gameState === "start"){ startGame(); }
+  else if(gameState === "playing"){ jump(); }
+}, {passive:true});
 
-addEventListener('keydown',e=>{if(e.key==='w'||e.key==='W')playerControls.acc=true;if(e.key==='s'||e.key==='S')playerControls.brk=true;
-if(e.key==='a'||e.key==='A')playerControls.left=true;if(e.key==='d'||e.key==='D')playerControls.right=true;
-if(e.key==='Shift')playerControls.boost=true;if(e.key==='r'||e.key==='R')resetScene();});
-addEventListener('keyup',e=>{if(e.key==='w'||e.key==='W')playerControls.acc=false;if(e.key==='s'||e.key==='S')playerControls.brk=false;
-if(e.key==='a'||e.key==='A')playerControls.left=false;if(e.key==='d'||e.key==='D')playerControls.right=false;
-if(e.key==='Shift')playerControls.boost=false;});
+// Collision
+function detectCollision(b,tube){
+  const bx=b.x, by=b.y, r=b.radius;
+  if(bx+r>tube.x && bx-r<tube.x+tubeWidth && by-r<tube.top.height) return true;
+  if(bx+r>tube.x && bx-r<tube.x+tubeWidth && by+r>tube.bottom.y) return true;
+  return false;
+}
 
-canvas.addEventListener('mousedown',()=>{playerControls.acc=true;});
-canvas.addEventListener('mouseup',()=>{playerControls.acc=false;});
-canvas.addEventListener('touchstart',(e)=>{e.preventDefault();playerControls.acc=true;});
-canvas.addEventListener('touchend',(e)=>{e.preventDefault();playerControls.acc=false;});
+// Draw tower with windows
+function drawTube(tube){
+  ctx.fillStyle = '#888';
+  ctx.fillRect(tube.x, tube.bottom.y, tubeWidth, tube.bottom.height);
+  ctx.fillStyle = 'black';
+  const rows = Math.floor(tube.bottom.height/20);
+  const cols = 3;
+  for(let i=0;i<rows;i++){
+    for(let j=0;j<cols;j++){
+      ctx.fillRect(tube.x+5+j*25, tube.bottom.y+5+i*20, 15,15);
+    }
+  }
+  ctx.fillStyle = '#228B22';
+  ctx.fillRect(tube.x, tube.top.y, tubeWidth, tube.top.height);
+}
 
-let last=performance.now();
-function loop(t){const dt=Math.min(0.032,(t-last)/1000);last=t;update(dt);render();requestAnimationFrame(loop);}
-requestAnimationFrame(loop);
+// Clouds
+function drawClouds(){
+  ctx.fillStyle='rgba(255,255,255,0.8)';
+  clouds.forEach(c=>{
+    ctx.beginPath();
+    ctx.arc(c.x,c.y,c.radius,0,Math.PI*2);
+    ctx.fill();
+    c.x -= c.speed;
+    if(c.x+c.radius<0) c.x = width+c.radius;
+  });
+}
 
-function update(dt){for(const c of cars)c.update(dt,playerControls,waypoints,cars);}
+// Game loop
+function update(){
+  ctx.clearRect(0,0,width,height);
+  drawClouds();
 
-function render(){ctx.clearRect(0,0,canvas.width,canvas.height);
-ctx.fillStyle='#0d1620';ctx.fillRect(0,0,innerWidth,innerHeight);
-ctx.lineJoin='round';ctx.lineCap='round';ctx.lineWidth=TRACK_WIDTH;ctx.strokeStyle='#7b7b7b';ctx.beginPath();
-for(let i=0;i<centerline.length;i++){const p=centerline[i];if(i===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);}ctx.closePath();ctx.stroke();
-ctx.lineWidth=8;ctx.strokeStyle='#2b3a2f';ctx.beginPath();for(let i=0;i<centerline.length;i++){const p=centerline[i];if(i===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);}ctx.closePath();ctx.stroke();
-for(let i=0;i<waypoints.length;i+=4){const w=waypoints[i];ctx.fillStyle='rgba(255,255,255,0.06)';ctx.beginPath();ctx.arc(w.x,w.y,4,0,Math.PI*2);ctx.fill();}
-for(const c of cars)drawCar(c);
-const status=document.getElementById('status');const p=cars[0];status.innerHTML=`Player speed: ${Math.round(p.speed)} px/s &nbsp; Laps: ${p.laps}`;}
+  // draw poops
+  poops.forEach((p, index)=>{
+    p.y += p.vy;
+    ctx.fillStyle = '#654321';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, poopRadius, 0, Math.PI*2);
+    ctx.fill();
+    if(p.y - poopRadius > height) poops.splice(index,1);
+  });
 
-function drawCar(c){ctx.save();ctx.translate(c.x,c.y+6);ctx.rotate(c.angle);ctx.globalAlpha=0.14;ctx.fillStyle='#000';ctx.fillRect(-c.width/2,-c.height/2,c.width,c.height);ctx.restore();ctx.globalAlpha=1;
-if(carImg.complete&&carImg.naturalWidth){ctx.save();ctx.translate(c.x,c.y);ctx.rotate(c.angle+Math.PI);const scale=Math.min(1.2,c.width*1.6/carImg.naturalWidth);const iw=carImg.naturalWidth*scale,ih=carImg.naturalHeight*scale;ctx.drawImage(carImg,-iw/2,-ih/2,iw,ih);ctx.restore();}else{ctx.save();ctx.translate(c.x,c.y);ctx.rotate(c.angle);ctx.fillStyle=c.color;ctx.fillRect(-c.width/2,-c.height/2,c.width,c.height);ctx.restore();}}
+  if(gameState==="start"){ drawBird(); requestAnimationFrame(update); return; }
+
+  if(gameState==="playing"){
+    bird.velocity += bird.gravity;
+    bird.y += bird.velocity;
+
+    if(bird.y + bird.radius > height){ bird.y = height-bird.radius; gameOver(); }
+    if(bird.y - bird.radius < 0){ bird.y = bird.radius; bird.velocity = 0; }
+
+    drawBird();
+
+    if(frameCount % tubeFrequency === 0) createTube();
+    tubes.forEach((tube,index)=>{
+      tube.x -= tubeSpeed;
+      drawTube(tube);
+      if(detectCollision(bird,tube)) gameOver();
+      if(!tube.passed && tube.x+tubeWidth < bird.x){ score++; tube.passed=true; if(score%5===0) tubeSpeed+=0.5; }
+      if(tube.x+tubeWidth<0) tubes.splice(index,1);
+    });
+
+    document.getElementById('score').innerText = "Score: "+score;
+    frameCount++;
+  }
+
+  requestAnimationFrame(update);
+}
+
+// Start screen
+function showStartScreen(){
+  ctx.clearRect(0,0,width,height);
+  drawClouds();
+  drawBird();
+  const msg = document.getElementById('message');
+  msg.innerHTML = `
+    <div>Mark's Flappy Bird</div>
+    <div>High Score: ${highScore}</div>
+    <button id="startBtn">Start Game</button>
+    <button onclick="showUploadScore()">Upload Score</button>
+    <button onclick="showLeaderboard()">Leaderboard</button>
+    <p>(Tip: Press Space to Start, Down Arrow to Poop!)</p>
+  `;
+  const startBtn = document.getElementById('startBtn');
+  startBtn.addEventListener('click', startGame);
+  startBtn.addEventListener('touchend', startGame);
+}
+
+// Start game
+function startGame(){
+  gameState="playing";
+  document.getElementById('message').innerHTML='';
+  bird.y = height/2; bird.velocity=0; tubes=[]; score=0; tubeSpeed=3; frameCount=0;
+  poops=[]; // clear any old poops
+}
+
+// Game over
+function gameOver(){
+  gameState="gameover";
+  if(score>highScore){ highScore=score; localStorage.setItem('flappyHighScore',highScore);}
+  const msg = document.getElementById('message');
+  msg.innerHTML=`
+    <div>Game Over</div>
+    <div>Final Score: ${score}</div>
+    <button onclick="startGame()">Restart</button>
+    <button onclick="showUploadScore()">Upload Score</button>
+    <button onclick="showStartScreen()">Home</button>
+  `;
+}
+
+// Upload score
+function showUploadScore(){
+  const msg = document.getElementById('message');
+  msg.innerHTML=`
+    <div>Upload Score</div>
+    <div>Final Score: ${score}</div>
+    <input type="text" id="playerName" placeholder="Enter your name">
+    <button onclick="submitScore()">Submit</button>
+    <button onclick="showStartScreen()">Cancel</button>
+  `;
+}
+
+// Submit score
+function submitScore(){
+  const input=document.getElementById('playerName');
+  let name=input.value.trim();
+  if(name===""){ alert("Enter a name!"); return;}
+  let scores=JSON.parse(localStorage.getItem('flappyLeaderboard')||"[]");
+  const existing=scores.find(s=>s.name===name);
+  if(existing){ if(score>existing.score) existing.score=score; }
+  else{ scores.push({name:name,score:score}); }
+  scores.sort((a,b)=>b.score-a.score);
+  if(scores.length>10) scores=scores.slice(0,10);
+  localStorage.setItem('flappyLeaderboard',JSON.stringify(scores));
+  showLeaderboard();
+}
+
+// Leaderboard
+function showLeaderboard(){
+  let scores=JSON.parse(localStorage.getItem('flappyLeaderboard')||"[]");
+  const medal=['🥇','🥈','🥉'];
+  let list=scores.map((s,i)=>`${i<3?medal[i]+' ':''}${s.name}: ${s.score}`).join("<br>");
+  if(list==="") list="No scores yet!";
+  const msg=document.getElementById('message');
+  msg.innerHTML=`
+    <div>Leaderboard</div>
+    <div id="leaderboardList">${list}</div>
+    <button onclick="showStartScreen()">Back</button>
+    <button onclick="clearLeaderboard()">Clear Leaderboard</button>
+  `;
+}
+
+// Clear leaderboard
+function clearLeaderboard(){
+  if(confirm("Are you sure you want to clear the leaderboard?")){
+    localStorage.removeItem('flappyLeaderboard');
+    showLeaderboard();
+  }
+}
+
+// Responsive canvas
+window.addEventListener('resize',()=>{
+  width=window.innerWidth; height=window.innerHeight;
+  canvas.width=width; canvas.height=height;
+});
+</script>
+</body>
+</html>
